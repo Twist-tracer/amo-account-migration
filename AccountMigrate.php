@@ -682,7 +682,7 @@ class AccountMigrate {
 	 * @param array $headers
 	 * @return array
 	 */
-	private function send_request($link, $post_data = [], $type = FALSE, $log = FALSE, $headers = []) {
+	private function send_request($link, $post_data = [], $type = FALSE, $log = FALSE, $headers = [], $delay = FALSE) {
 		if(!$this->check_auth()) {
 			$this->auth();
 		}
@@ -722,7 +722,10 @@ class AccountMigrate {
 		curl_setopt($curl, CURLOPT_SSL_VERIFYPEER, 0);
 		curl_setopt($curl, CURLOPT_SSL_VERIFYHOST, 0);
 
-		//sleep(1);
+		if($delay) {
+			sleep($delay);
+		}
+
 		$out = curl_exec($curl);
 		$this->count_requests++;
 
