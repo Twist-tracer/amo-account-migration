@@ -1,10 +1,37 @@
 <?php
 
+/**
+ * Перемещает данные в новый аккаунт.
+ *
+ * Перед запуском в новом аккаунте необходимо создать:
+ * 1) Менеджеров с теми же именами.
+ * 2) Типы задач в том же порядке
+ * 3) Воронки и статусы в том же порядке
+ *
+ * Перемещает:
+ * Сделки
+ * Контакты
+ * Компании
+ * Примечания (кроме чатов и переходов по статусам)
+ * Задачи
+ *
+ * Не переместятся:
+ * Покупатели
+ * Примечания типа чат, и типа 3 (Статус сделки изменен)
+ *
+ * Не достающие кастомные поля будут создаданны автоматически, с теми же именами.
+ * Не существующие типы задач будут заменены на CALL (Связаться с клиентом)
+ * !Важно. В сущностях не должны дублироваться названия полей, иначе могут возникнуть проблемы.
+ * Поля от GA и прочие поля с непучтым полем code не создадутся.
+ *
+ * Class AccountMigrate
+ */
 class AccountMigrate {
-	const MAX_ENTITY = 9;
+	const MAX_ENTITY = 250;
 	const LEADS_TYPE = 2;
 	const CONTACTS_TYPE = 1;
 	const COMPANIES_TYPE = 3;
+	const TASKS_TYPE = 4;
 
 	private $starttime;
 	private $count_requests = 0;
@@ -18,15 +45,26 @@ class AccountMigrate {
 
 	private $entity_types = [
 		'unsorted' => ['sip', 'mail', 'forms'],
-		'leads', 'companies', 'contacts', 'tasks',
+		'leads', 'companies', 'contacts',
+		'tasks',
 		'notes' => ['contact', 'lead', 'company', 'task']
 	];
-	private $default_data = [
-		'statuses' => [
-			['id' => 142],
-			['id' => 143]
-		],
-		'field_codes' => ['POSITION', 'PHONE', 'EMAIL', 'IM', 'WEB', 'ADDRESS']
+
+	private $lang = [
+		'ru' => [
+			'unsorted' => 'Неразобранное',
+			'leads' => 'Сделки',
+			'contacts' => 'Контакты',
+			'companies' => 'Компании',
+			'tasks' => 'Задачи',
+			'notes' => 'Примечания',
+
+			'contact' => 'Контакт',
+			'lead' => 'Сделка',
+			'company' => 'Компаниия',
+			'task' => 'Задача',
+			'note' => 'Примечание',
+		]
 	];
 
 	private $map = [];
@@ -87,6 +125,8 @@ class AccountMigrate {
 	 * @return array
 	 */
 	private function get_entities($type) {
+		$starttime = time();
+		echo 'Получаем все '.$this->lang['ru'][$type].PHP_EOL;
 		if($type == 'unsorted' ) {
 			$params['page_size'] = self::MAX_ENTITY;
 			$params['PAGEN_1'] = 1;
@@ -111,6 +151,7 @@ class AccountMigrate {
 			$all_chunks = $this->get_all_chunks($type, $params);
 		}
 
+		echo 'Все '.$this->lang['ru'][$type]. ' получены за ' .(time() - $starttime). 'c.'.PHP_EOL;
 		return $all_chunks;
 	}
 
@@ -155,11 +196,7 @@ class AccountMigrate {
 			}
 			$method = '/private/api/v2/json/'.$type.'/list/';
 		}
-		$link = $this->config[$this->settings_key]['protocol'].
-			$this->config[$this->settings_key]['subdomain'].'.'.
-			$this->config[$this->settings_key]['domain'].
-			$method.'?'.
-			http_build_query($params);
+		$link = $this->build_link($method, $params);
 
 		$response = $this->send_request($link);
 		$data = $response["data"];
@@ -205,8 +242,6 @@ class AccountMigrate {
 		return TRUE;
 	}
 
-
-
 	private function send_custom_fields($data) {
 		$method = '/private/api/v2/json/fields/set/';
 		$link = $this->build_link($method);
@@ -226,10 +261,12 @@ class AccountMigrate {
 	private function send_entities($type, $data) {
 		$data = $this->filter_data($type, $data);
 
+		$starttime = time();
+		echo 'Отправляем все '.$this->lang['ru'][$type].PHP_EOL;
+
 		foreach($data as $chunk_id => $chunk) {
 			$response = $this->send_entity_chunk($type, $chunk);
-
-			if(!in_array($type, ['tasks', 'notes', 'unsorted'])) {
+			if(!in_array($type, ['notes', 'unsorted'])) {
 				if(empty($map)) {
 					$map = $this->build_map($chunk, $response);
 				} else {
@@ -241,6 +278,7 @@ class AccountMigrate {
 		if(isset($map)) {
 			$this->map[$type] = $map;
 		}
+		echo 'Все '.$this->lang['ru'][$type]. ' отправлены за ' .(time() - $starttime). 'c.'.PHP_EOL;
 	}
 
 	/**
@@ -277,12 +315,9 @@ class AccountMigrate {
 	}
 
 	private function get_statuses_by_pipelines($pipelines) {
-		$statuses = $this->default_data['statuses'];
 		foreach($pipelines as $pipeline) {
 			foreach($pipeline['statuses'] as $status) {
-				if(!in_array($status['id'], $this->default_data['statuses'])) {
-					$statuses[] = $status;
-				}
+				$statuses[] = $status;
 			}
 		}
 
@@ -305,7 +340,7 @@ class AccountMigrate {
 				}
 
 				if(empty($this->search_item('name', $field['name'], $new_data[$type]))) {
-					$field['element_type'] = $this->get_entity_type_by_name($type);
+					$field['element_type'] = $this->get_entity_id_by_type($type);
 					$field['origin'] = 'migrate_script';
 					$field['type'] = $field['type_id'];
 					unset($field['type_id']);
@@ -396,6 +431,21 @@ class AccountMigrate {
 	}
 
 	/**
+	 * Приводит карту к удобному виду
+	 * @param $data
+	 * @return mixed
+	 */
+	private function filter_map($data) {
+		foreach($data['old'] as $k => $item) {
+			$data[$item['id']] = $data['new'][$k]['id'];
+		}
+		unset($data['new']);
+		unset($data['old']);
+
+		return $data;
+	}
+
+	/**
 	 * Отправляет часть сущностей в соответствии с ограничением
 	 * @param $type
 	 * @param $data
@@ -439,8 +489,9 @@ class AccountMigrate {
 	 * @return array
 	 */
 	private function filter_data($type, $data) {
+		$starttime = time();
+		echo 'Формируем '.$this->lang['ru'][$type].PHP_EOL;
 		if ($type == 'unsorted') {
-
 			$tmp_data = [];
 			foreach($data as $unsorted_type => &$chunks) {
 				if(!empty($chunks)) {
@@ -473,6 +524,7 @@ class AccountMigrate {
 			}
 		}
 
+		echo $this->lang['ru'][$type]. ' сформированы за ' .(time() - $starttime). 'c.'.PHP_EOL;
 		return $data;
 	}
 
@@ -485,7 +537,9 @@ class AccountMigrate {
 	private function filter_data_chunk($type, $chunk) {
 		foreach ($chunk as $k => &$item) {
 			if(!empty($item['responsible_user_id'])) {
-				$item['responsible_user_id'] = $this->map['account']['managers'][$item['responsible_user_id']];
+				if(isset($this->map['account']['managers'][$item['responsible_user_id']])) {
+					$item['responsible_user_id'] = $this->map['account']['managers'][$item['responsible_user_id']];
+				}
 			}
 
 			if (in_array($type, ['leads', 'contacts', 'companies'])) {
@@ -540,9 +594,23 @@ class AccountMigrate {
 					$item['element_id'] = $this->map[$this->get_entity_type_by_id($item['element_type'])][$item['element_id']];
 				}
 
+				if (!empty($item['account_id'])) {
+					$item['account_id'] = $this->map['account']['id'][$item['account_id']];
+				}
+
+				if(!empty($item['created_user_id'])) {
+					$item['created_user_id'] = $this->map['account']['managers'][$item['created_user_id']];
+				}
+
 				if ($type == 'tasks') {
-					if (is_numeric($item['task_type'])) {
-						$item['task_type'] = $this->map['account']['task_types'][$item['task_type']];
+					if (is_int($item['task_type']) || is_numeric($item['task_type'])) {
+						if(isset($this->map['account']['task_types'][$item['task_type']])) {
+							$item['task_type'] = $this->map['account']['task_types'][$item['task_type']];
+						} else {
+							$item['task_type'] = 'CALL'; // Поставим Call по умолчанию, если данный тип был удален
+						}
+
+						unset($chunk[$k]['result']);
 					}
 				}
 
@@ -551,30 +619,11 @@ class AccountMigrate {
 						unset($chunk[$k]);
 						continue;
 					}
-
-					if(!empty($item['created_user_id'])) {
-						$item['created_user_id'] = $this->map['account']['managers'][$item['created_user_id']];
-					}
 				}
 			}
 		}
 
 		return $chunk;
-	}
-
-	/**
-	 * Приводит карту к удобному виду
-	 * @param $data
-	 * @return mixed
-	 */
-	private function filter_map($data) {
-		foreach($data['old'] as $k => $item) {
-			$data[$item['id']] = $data['new'][$k]['id'];
-		}
-		unset($data['new']);
-		unset($data['old']);
-
-		return $data;
 	}
 
 	/**
@@ -593,8 +642,10 @@ class AccountMigrate {
 			case self::COMPANIES_TYPE:
 				return 'companies';
 				break;
+			case self::TASKS_TYPE:
+				return 'tasks';
+				break;
 		}
-
 
 		return NULL;
 	}
@@ -604,7 +655,7 @@ class AccountMigrate {
 	 * @param $type
 	 * @return bool|int
 	 */
-	private function get_entity_type_by_name($type) {
+	private function get_entity_id_by_type($type) {
 		switch($type) {
 			case 'leads':
 				$return = self::LEADS_TYPE;
@@ -614,6 +665,9 @@ class AccountMigrate {
 				break;
 			case 'contacts':
 				$return = self::CONTACTS_TYPE;
+				break;
+			case 'tasks':
+				$return = self::TASKS_TYPE;
 				break;
 			default:
 				$return = FALSE;
@@ -751,8 +805,11 @@ class AccountMigrate {
 	public function __destruct() {
 		echo 'Время работы скрипта ' . (time() - $this->starttime) . 'с.'.PHP_EOL;
 		echo 'Запросов к API ' . ($this->count_requests) . 'шт.'.PHP_EOL;
-		echo 'Пиковое значение затраченной памяти ' . (memory_get_peak_usage(TRUE) / 1024) . 'кб.';
-		print_r($this->map);
+		echo 'Пиковое значение затраченной памяти ' . (memory_get_peak_usage(TRUE) / 1024) . 'кб.'.PHP_EOL;
+
+		file_put_contents('moved_data_map.txt', json_encode($this->map));
+		echo 'Карта сущностей сохранена в moved_data_map.txt: '.PHP_EOL;
+
 		unset($this);
 	}
 }
