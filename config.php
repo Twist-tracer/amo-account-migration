@@ -3,38 +3,38 @@
 return [
 //	'from' => [
 //		'account' => [
-//			'USER_LOGIN' => 'accountcom@mail.com',
-//			'USER_HASH' => '72d79779da0051f8daaccdc00b232aeb'
+//			'USER_LOGIN' => '',
+//			'USER_HASH' => ''
 //		],
 //		'protocol' => 'https://',
-//		'subdomain' => 'accountcom',
+//		'subdomain' => '',
 //		'domain' => 'amocrm.com',
 //	],
 //	'to' => [
 //		'account' => [
-//			'USER_LOGIN' => 'accountru@mail.ru',
-//			'USER_HASH' => 'f12e3064b9363f4bdb96fb5f5965e583'
+//			'USER_LOGIN' => '',
+//			'USER_HASH' => ''
 //		],
 //		'protocol' => 'https://',
-//		'subdomain' => 'accountru',
+//		'subdomain' => '',
 //		'domain' => 'amocrm.ru',
 //	],
 	'from' => [
 		'account' => [
-			'USER_LOGIN' => 'sbogdanov@team.amocrm.com',
-			'USER_HASH' => 'c8766d7a9c1ae00ffb9b1a7cd0d647b0'
+			'USER_LOGIN' => '',
+			'USER_HASH' => ''
 		],
 		'protocol' => 'https://',
-		'subdomain' => '5minshop',
+		'subdomain' => '',
 		'domain' => 'amocrm.com',
 	],
 	'to' => [
 		'account' => [
-			'USER_LOGIN' => 'sbogdanov@team.amocrm.com',
-			'USER_HASH' => 'c8766d7a9c1ae00ffb9b1a7cd0d647b0'
+			'USER_LOGIN' => '',
+			'USER_HASH' => ''
 		],
 		'protocol' => 'https://',
-		'subdomain' => '5minut',
+		'subdomain' => '',
 		'domain' => 'amocrm.ru',
 	]
 ];
