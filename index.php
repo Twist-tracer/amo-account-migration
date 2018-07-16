@@ -1,6 +1,6 @@
 <?php
-ini_set('max_execution_time', 0); // Âðåìÿ âûïîëíåíèÿ íåîãðàíè÷åíî
-ini_set('memory_limit', 536870912); // Âûäåëÿåì 512ìá (íåîáõîäèìî äëÿ êàðòû ñóùíîñòåé)
+ini_set('max_execution_time', 0); // Ð’Ñ€ÐµÐ¼Ñ Ð²Ñ‹Ð¿Ð¾Ð»Ð½ÐµÐ½Ð¸Ñ Ð½ÐµÐ¾Ð³Ñ€Ð°Ð½Ð¸Ñ‡ÐµÐ½Ð¾
+ini_set('memory_limit', 536870912); // Ð’Ñ‹Ð´ÐµÐ»ÑÐµÐ¼ 512Ð¼Ð± (Ð½ÐµÐ¾Ð±Ñ…Ð¾Ð´Ð¸Ð¼Ð¾ Ð´Ð»Ñ ÐºÐ°Ñ€Ñ‚Ñ‹ ÑÑƒÑ‰Ð½Ð¾ÑÑ‚ÐµÐ¹)
 require_once 'AccountMigrate.php';
 
 $config = require_once 'config.php';
