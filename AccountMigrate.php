@@ -340,7 +340,13 @@ class AccountMigrate {
 				}
 
 				if(empty($this->search_item('name', $field['name'], $new_data[$type]))) {
-					$field['element_type'] = $this->get_entity_id_by_type($type);
+					$element_type = $this->get_entity_id_by_type($type);
+
+					if(!$element_type) {
+						continue;
+					}
+
+					$field['element_type'] = $element_type;
 					$field['origin'] = 'migrate_script';
 					$field['type'] = $field['type_id'];
 					unset($field['type_id']);
